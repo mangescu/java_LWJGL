@@ -1,0 +1,618 @@
+
+
+import java.awt.AWTException;
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Robot;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.imageio.ImageIO;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+
+
+public class CosineInterpolationM {
+
+    JFrame frame;
+    JPanel panel;
+    MouseListener mouseListener;
+    MouseMotionListener mouseMotion;
+    KeyListener keylist;
+    BufferedImage image_1, image_2,image_3;
+
+    Point O = new Point(5, 5);
+
+    boolean enableRender = true;
+    int deltaX, deltaY;
+
+    boolean save_warp_image = true;
+    PixelWarp warp = new PixelWarp();
+
+    public static void main(String[] args) throws IOException, AWTException {
+        CosineInterpolationM cosine = new CosineInterpolationM();
+        cosine.interfata();
+    }
+
+    public void interfata() throws IOException, AWTException {
+
+
+        String director = "FRAMES/";
+        File directory = new File(director);
+        String[] files = directory.list();
+
+
+        
+        image_1 = ImageIO.read(new File(director + files[0]));
+        image_2 = ImageIO.read(new File(director + files[0]));
+        image_3 = ImageIO.read(new File(director + files[1]));
+        warp.image_1 = image_1;
+        warp.image_2 = image_2;
+        warp.width = image_1.getWidth();
+        warp.height = image_1.getHeight();
+        warp.pixelUtil_image_1 = new PixelUtil(image_1);
+        warp.pixelUtil_image_2 = new PixelUtil(image_2);
+
+        frame = new JFrame();
+        warp.frame = frame;
+        panel = new JPanel() {
+            public void paint(Graphics g) {
+                g.fillRect(0, 0, 1500, 1500);
+                g.drawImage(image_1, 0, 0, null);
+                g.drawImage(image_3, 0, 0, null);
+                if (enableRender && warp != null) {
+                    drawing(g);
+                }
+            }
+        };
+        keylist = new KeyListener() {
+            public void keyTyped(KeyEvent e) {}
+            public void keyReleased(KeyEvent e) {}
+            public void keyPressed(KeyEvent e) {
+           
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    System.exit(0);
+                }
+
+                if (e.getKeyCode() == KeyEvent.VK_K) {
+                    if (warp.grid_cell_number > 3) {
+                        warp.grid_cell_number--;
+                    }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_S) {
+                     if (!warp.splineAndAnchors) {
+                        warp.grid_start_y += 4;
+                     }else {
+                         O.y += 4;
+                         try {
+                             warp.writeGridImage(true,(int) O.x,(int) O.y);
+                         } catch (IOException ex) {}
+                     }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_W) {
+                     if (!warp.splineAndAnchors) {
+                         warp.grid_start_y -= 4;
+                     } else {
+                        O.y -= 4;
+                         try {
+                             warp.writeGridImage(true,(int) O.x,(int) O.y);
+                         } catch (IOException ex) {}
+                     }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_D) {
+                     if (!warp.splineAndAnchors) {
+                         warp.grid_start_x += 4;
+                     }else {
+                        O.x += 4;
+                         try {
+                             warp.writeGridImage(true,(int) O.x,(int) O.y);
+                         } catch (IOException ex) {}
+                     }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_A) {
+                     if (!warp.splineAndAnchors) {
+                             warp.grid_start_x -= 4;
+                     }else {
+                        O.x -= 4;
+                         try {
+                             warp.writeGridImage(true,(int) O.x,(int) O.y);
+                         } catch (IOException ex) {}
+                     }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_L) {
+                     if (!warp.splineAndAnchors) {
+                    warp.grid_cell_number++;
+                     }
+                    panel.repaint();
+                }
+
+                if (e.getKeyCode() == KeyEvent.VK_UP) {
+                    warp.grid_cell_width_y -= 2;
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                    warp.grid_cell_width_y += 2;
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_LEFT) {
+                    warp.grid_cell_width_x -= 2;
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
+                    warp.grid_cell_width_x += 2;
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    warp.generateAnchorANDSplines();
+                        for (Spline spline : warp.splineListH) {
+                            spline.getCardinalPoints();
+                        }
+                        for (Spline spline : warp.splineListV) {
+                            spline.getCardinalPoints();
+                        }
+                    panel.repaint();
+                }
+                if (e.getKeyCode() == KeyEvent.VK_P) {
+                    try {
+                        if (save_warp_image) {
+                            ImageIO.write(image_1, "png", new File("image.png"));
+                        }
+                    } catch (IOException ex) {
+                    }
+                }
+
+            }
+        };
+        mouseMotion = new MouseMotionListener() {
+            public void mouseMoved(MouseEvent e) {}
+            public void mouseDragged(MouseEvent e) {
+                int x = e.getX();
+                int y = e.getY();
+                if (warp.splineAndAnchors) {
+                    if (warp.point != null) {
+                        warp.point.x = x;
+                        warp.point.y = y;
+                        panel.repaint();
+                    }
+                } else {
+                    if (x > warp.grid_start_x && x < warp.grid_start_x + (warp.grid_cell_width_x * (warp.grid_cell_number - 1))) {
+                        if (y > warp.grid_start_y && y < warp.grid_start_y + (warp.grid_cell_width_y * (warp.grid_cell_number - 1))) {
+                            warp.grid_start_x = x - deltaX;
+                            warp.grid_start_y = y - deltaY;
+                        } else {
+                            float dist_x = x - warp.grid_start_x;
+                            float dist_y = y - warp.grid_start_y;
+                            warp.grid_cell_width_x = (int) (dist_x / (warp.grid_cell_number - 1) - 20);
+                            warp.grid_cell_width_y = (int) (dist_y / (warp.grid_cell_number - 1) - 20);
+                        }
+                    } else {
+                        float dist_x = x - warp.grid_start_x;
+                        float dist_y = y - warp.grid_start_y;
+                        warp.grid_cell_width_x = (int) (dist_x / (warp.grid_cell_number - 1) - 20);
+                        warp.grid_cell_width_y = (int) (dist_y / (warp.grid_cell_number - 1) - 20);
+                    }
+
+                }
+                panel.repaint();
+            }
+        };
+        mouseListener = new MouseListener() {
+            public void mouseEntered(MouseEvent e) {}
+            public void mouseExited(MouseEvent e) {}
+            public void mouseClicked(MouseEvent e) {}
+            public void mousePressed(MouseEvent e) {
+                int x = e.getX();
+                int y = e.getY();
+                if (warp.splineAndAnchors) {
+                    boolean check = false;
+                    for (int i = 1; i < warp.grid_cell_number - 1; i++) {
+                        for (int j = 1; j < warp.grid_cell_number - 1; j++) {
+                            if (warp.pointMatrix[i][j].x - 4 < x && x < warp.pointMatrix[i][j].x + 4) {
+                                if (warp.pointMatrix[i][j].y - 4 < y && y < warp.pointMatrix[i][j].y + 4) {
+                                    check = true;
+                                    warp.point = warp.pointMatrix[i][j];
+                                }
+                            }
+                        }
+                    }
+                    if (!check) {
+                        warp.point = null;
+                    }
+                } else {
+                    deltaX = x - warp.grid_start_x;
+                    deltaY = y - warp.grid_start_y;
+                }
+            }
+
+            public void mouseReleased(MouseEvent e) {
+                try {
+                    if (warp.splineAndAnchors) {
+                        for (Spline spline : warp.splineListH) {
+                            spline.getCardinalPoints();
+                        }
+                        for (Spline spline : warp.splineListV) {
+                            spline.getCardinalPoints();
+                        }
+                        warp.writeGridImage(false,0,0);
+                    }
+                    panel.repaint();
+                } catch (IOException ex) {
+                }
+                warp.point = null;
+            }
+        };
+        panel.addMouseListener(mouseListener);
+        panel.addMouseMotionListener(mouseMotion);
+        frame.addKeyListener(keylist);
+        frame.getContentPane().add(panel);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(1050, 800);
+        frame.setLocation(50, 20);
+        frame.setVisible(true);
+
+        panel.repaint();
+    }
+
+    public void drawing(Graphics g) {
+
+        if (warp.splineAndAnchors) {
+            g.setColor(Color.red);
+            for (Spline spline : warp.splineListH) {
+                for (int i = warp.grid_start_x; i < warp.grid_start_x + (warp.grid_cell_width_x * (warp.grid_cell_number - 1)); i++) {
+                    double y = warp.getYSplineCoord(spline, i);
+                    g.fillRect(i, (int) y, 1, 1);
+                }
+
+            }
+            for (Spline spline : warp.splineListV) {
+                for (int i = warp.grid_start_y; i < warp.grid_start_y + (warp.grid_cell_width_y * (warp.grid_cell_number - 1)); i++) {
+                    double x = warp.getXSplineCoord(spline, i);
+                    g.fillRect((int) x, i, 1, 1);
+                }
+            }
+            g.setColor(Color.blue);
+            if (warp.pointMatrix != null) {
+                for (int i = 0; i < warp.grid_cell_number; i++) {
+                    for (int j = 0; j < warp.grid_cell_number; j++) {
+                        g.fillRect((int) warp.pointMatrix[i][j].x - 4, (int) warp.pointMatrix[i][j].y - 4, 8, 8);
+
+                    }
+                }
+            }
+            g.setColor(Color.GREEN);
+    
+        } else {
+            g.setColor(Color.green);
+            for (int i = warp.grid_start_x; i < warp.grid_start_x + (warp.grid_cell_width_x * (warp.grid_cell_number)); i = i + warp.grid_cell_width_x) {
+                g.drawLine(i, warp.grid_start_y, i, warp.grid_start_y + ((warp.grid_cell_number - 1) * warp.grid_cell_width_y));
+            }
+            for (int i = warp.grid_start_y; i < warp.grid_start_y + (warp.grid_cell_width_y * (warp.grid_cell_number)); i = i + warp.grid_cell_width_y) {
+                g.drawLine(warp.grid_start_x, i, warp.grid_start_x + ((warp.grid_cell_number - 1) * warp.grid_cell_width_x), i);
+            }
+
+        }
+
+    }
+}
+
+class PixelWarp {
+    JFrame frame;
+    String imageName;
+    boolean splineAndAnchors = false;
+    Point top = new Point(0, 0);
+    Point botom = new Point(0, 0);
+    Point left = new Point(0, 0);
+    Point right = new Point(0, 0);
+    double p;
+    int cell_x = 0, cell_y = 0;
+    Graphics g;
+    Point point, M, N;
+    int delta_x, delta_y;
+    BufferedImage image_1, image_2;
+    Spline spline;
+    int[] rgb;
+    int width;
+    int height;
+    double spline_V_min, spline_V_max;
+    double spline_H_min, spline_H_max;
+    ArrayList<Spline> splineListH = new ArrayList<Spline>();
+    ArrayList<Spline> splineListV = new ArrayList<Spline>();
+    PixelUtil pixelUtil_image_1, pixelUtil_image_2;
+
+    int top_distance_dest=0, left_distance_dest=0,bottom_distance_dest = 0;
+    int top_percent_dest, left_percent_dest;
+    int top_distance_source, left_distance_source;
+
+    Point[][] pointMatrix;
+    double dist, proc_distance, proc;
+    double x, y, x_ret, y_ret, f;
+
+    double counter = 0;
+
+    int grid_cell_number = 6;
+    int grid_start_x = 15;
+    int grid_start_y = 15;
+    int grid_cell_width_x = 100;
+    int grid_cell_width_y = 100;
+    int gridPixelPercent_x;
+    int gridPixelPercent_y;
+    
+    
+    int skypIndex=0;
+
+
+    public PixelWarp() {}
+
+    public void generateAnchorANDSplines() {
+        pointMatrix = new Point[grid_cell_number][grid_cell_number];
+        splineAndAnchors = true;
+        delta_x = 0;
+        delta_y = 0;
+        for (int i = 0; i < grid_cell_number; i++) {
+            delta_y = 0;
+            for (int j = 0; j < grid_cell_number; j++) {
+                point = new Point(grid_start_x + delta_x, (grid_start_y + delta_y));
+                pointMatrix[j][i] = point;
+                delta_y += grid_cell_width_y;
+            }
+            delta_x += grid_cell_width_x;
+        }
+        point = null;
+        for (int i = 0; i < grid_cell_number; i++) {
+            spline = new Spline();
+            for (int j = 0; j < grid_cell_number; j++) {
+                spline.points.add(pointMatrix[i][j]);
+            }
+            splineListH.add(spline);
+        }
+        for (int j = 0; j < grid_cell_number; j++) {
+            spline = new Spline();
+            for (int i = 0; i < grid_cell_number; i++) {
+                spline.points.add(pointMatrix[i][j]);
+            }
+            splineListV.add(spline);
+        }
+    }
+
+    public void writeGridImage(boolean singleDraw, int x, int y) throws IOException {
+        if (!singleDraw) {
+            if (!pixelUtil_image_1.alphaRaster) 
+            {
+                double start = System.currentTimeMillis();
+                for (int i = grid_start_x; i < grid_start_x + (grid_cell_width_x * (grid_cell_number - 1)); i++) {
+                    for (int j = grid_start_y; j < grid_start_y + (grid_cell_width_y * (grid_cell_number - 1)); j++) {
+                        getpixelCells(i, j);
+                        top_percent_dest = (int) ((top_distance_dest * grid_cell_width_y) / (botom.y - top.y));
+                        left_percent_dest = (int) ((left_distance_dest * grid_cell_width_x) / (right.x - left.x));
+                        top_distance_source = (int) (((double) top_percent_dest / grid_cell_width_y) * grid_cell_width_y);
+                        left_distance_source = (int) (((double) left_percent_dest / grid_cell_width_x) * grid_cell_width_x);
+                        rgb = pixelUtil_image_2.getPixelColor(grid_start_x + (int) ((cell_x * grid_cell_width_x) + left_distance_source), grid_start_y + (int) ((cell_y * grid_cell_width_y) + top_distance_source));
+                        pixelUtil_image_1.setPixelColor(i, j, rgb[0], rgb[1], rgb[2], rgb[3]);
+                    }
+                }
+            } else {
+                for (int i = grid_start_x; i < grid_start_x + (grid_cell_width_x * (grid_cell_number - 1)); i++) {
+                    for (int j = grid_start_y; j < grid_start_y + (grid_cell_width_y * (grid_cell_number - 1)); j++) {
+                        getpixelCells(i, j);
+                        top_percent_dest = (int) ((top_distance_dest * grid_cell_width_y) / (botom.y - top.y));
+                        left_percent_dest = (int) ((left_distance_dest * grid_cell_width_x) / (right.x - left.x));
+                        top_distance_source = (int) (((double) top_percent_dest / grid_cell_width_y) * grid_cell_width_y);
+                        left_distance_source = (int) (((double) left_percent_dest / grid_cell_width_x) * grid_cell_width_x);
+                        rgb = pixelUtil_image_2.getPixelColor_alpha(grid_start_x + (int) ((cell_x * grid_cell_width_x) + left_distance_source), grid_start_y + (int) ((cell_y * grid_cell_width_y) + top_distance_source));
+                        pixelUtil_image_1.setPixelColor_alpha(i, j, rgb[0], rgb[1], rgb[2], rgb[3]);
+                    }
+                }        
+            }
+        }
+    }
+
+    public void getpixelCells(int x, int y) {
+        for (int i = 0; i < splineListH.size() - 1; i++) {
+         
+            if (y < splineListH.get(i + 1).bottomPoint && y >= splineListH.get(i).upPoint ) { 
+                spline_H_max = getYSplineCoord(splineListH.get(i + 1), x);
+                if(y < spline_H_max) 
+                {      
+                    if(bottom_distance_dest < 5) {
+                        spline_H_min = getYSplineCoord(splineListH.get(i), x);
+                        top.y = (int) spline_H_min;
+                        botom.y = (int) spline_H_max;
+                        top.x = x;
+                        botom.x = x;
+                    }                
+                    cell_y = i;
+                    break;
+                }
+            } 
+        }
+        for (int i = 0; i < splineListV.size() - 1; i++) {
+            if (x < splineListV.get(i + 1).rightPoint + 1 && x >= splineListV.get(i).leftPoint - 1) 
+            {  
+                spline_V_max = getXSplineCoord(splineListV.get(i + 1), y);
+                if(x < spline_V_max) 
+                {
+                    spline_V_min = getXSplineCoord(splineListV.get(i), y);
+                    left.x = (int) spline_V_min;
+                    left.y = y;
+                    right.x = (int) spline_V_max;
+                    right.y = y;
+                    cell_x = i;
+                    break;
+                }
+            }
+        }
+        top_distance_dest    = (int) Math.abs(y - top.y);
+        bottom_distance_dest = (int) Math.abs(botom.y - y);
+        left_distance_dest   = (int) Math.abs(x - left.x);  
+    }
+
+    public double getXSplineCoord(Spline spline, int y) {
+        for (int i = 1; i < spline.points.size(); i++) {
+            if (y < spline.points.get(i).y) {
+                x_ret = get_X_Cosine_Values(spline.points.get(i - 1), spline.points.get(i), y);
+                break;
+            }
+        }
+        return x_ret;
+    }
+
+    public double getYSplineCoord(Spline spline, int x) {
+        y_ret = 0;
+        for (int i = 1; i < spline.points.size(); i++) {
+            if (x < spline.points.get(i).x) {
+                y_ret = get_Y_Cosine_Values(spline.points.get(i - 1), spline.points.get(i), x);
+                break;
+            }
+        }
+        return y_ret;
+    }
+
+    public double get_X_Cosine_Values(Point A, Point B, int y_pos) {
+        dist = y_pos - A.y;
+        proc_distance = B.y - A.y;
+        proc = (dist * 100) / proc_distance;
+        p = proc / 100;
+        f = (1 - Math.cos(p * Math.PI)) / 2;
+        x = (A.x * (1 - f) + B.x * f);
+        return Math.round(x);
+    }
+
+    public double get_Y_Cosine_Values(Point A, Point B, int x_pos) {
+        dist = x_pos - A.x;
+        proc_distance = B.x - A.x;
+        proc = (dist * 100) / proc_distance;
+        p = proc / 100;
+        f = (1 - Math.cos(p * Math.PI)) / 2;
+        y = (A.y * (1 - f) + B.y * f);
+        return Math.round(y);
+    }
+}
+
+class Spline {
+    int leftPoint = 1000;
+    int rightPoint = 0;
+    int upPoint = 1000;
+    int bottomPoint = 0;
+    ArrayList<Point> points = new ArrayList<Point>();
+    public Spline() {}
+    public void getCardinalPoints() {
+        for (Point p : points) {
+            if (p.x > rightPoint) {
+                rightPoint = (int) p.x;
+            }
+            if (p.x < leftPoint) {
+                leftPoint = (int) p.x;
+            }
+            if (p.y > bottomPoint) {
+                bottomPoint = (int) p.y;
+            }
+            if (p.y < upPoint) {
+                upPoint = (int) p.y;
+            }
+        }
+    }
+}
+
+class Point {
+    double x;
+    double y;
+    public Point(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+class PixelUtil {
+
+    BufferedImage image;
+    boolean alphaRaster = false;
+    int width, height;
+    int[] rgb = new int[4];
+    byte[] image_byte_array;
+
+    public PixelUtil(BufferedImage image) {
+        refresh_byte_array(image);
+        this.image = image;
+        if (image.getAlphaRaster() != null) {
+            alphaRaster = true;
+        }
+        width = image.getWidth();
+        height = image.getHeight();
+    }
+
+    public void refresh_byte_array(BufferedImage image) {
+        this.image = image;
+        image_byte_array = null;
+        image_byte_array = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+    }
+    public int[] getPixelColor(int i, int j) {
+        rgb[0] = 255;
+        rgb[1] = image_byte_array[(j * width * 3) + (i * 3) + 2] & 0xFF;
+        rgb[2] = image_byte_array[(j * width * 3) + (i * 3) + 1] & 0xFF;
+        rgb[3] = image_byte_array[(j * width * 3) + (i * 3)] & 0xFF;
+        return rgb;
+    }
+    public int[] getPixelColor_alpha(int i, int j) {
+        rgb[0] = image_byte_array[(j * width * 4) + (i * 4)] & 0xFF;
+        rgb[1] = image_byte_array[(j * width * 4) + (i * 4) + 3] & 0xFF;
+        rgb[2] = image_byte_array[(j * width * 4) + (i * 4) + 2] & 0xFF;
+        rgb[3] = image_byte_array[(j * width * 4) + (i * 4) + 1] & 0xFF;
+        return rgb;
+    }
+
+    public void setPixelColor(int i, int j, int alpha, int red, int green, int blue) {
+        if (blue <= 127) {
+            image_byte_array[(j * width * 3) + (i * 3)] = (byte) blue;
+        } else {
+            image_byte_array[(j * width * 3) + (i * 3)] = (byte) (blue - 256);
+        }
+        if (green <= 127) {
+            image_byte_array[(j * width * 3) + (i * 3) + 1] = (byte) green;
+        } else {
+            image_byte_array[(j * width * 3) + (i * 3) + 1] = (byte) (green - 256);
+        }
+        if (red <= 127) {
+            image_byte_array[(j * width * 3) + (i * 3) + 2] = (byte) red;
+        } else {
+            image_byte_array[(j * width * 3) + (i * 3) + 2] = (byte) (red - 256);
+        }
+    }
+    public void setPixelColor_alpha(int i, int j, int alpha, int red, int green, int blue) {
+        if (alpha <= 127) {
+            image_byte_array[(j * width * 4) + (i * 4)] = (byte) alpha;
+        } else {
+            image_byte_array[(j * width * 4) + (i * 4)] = (byte) (alpha - 256);
+        }
+        if (blue <= 127) {
+            image_byte_array[(j * width * 4) + (i * 4) + 1] = (byte) blue;
+        } else {
+            image_byte_array[(j * width * 4) + (i * 4) + 1] = (byte) (blue - 256);
+        }
+        if (green <= 127) {
+            image_byte_array[(j * width * 4) + (i * 4) + 2] = (byte) green;
+        } else {
+            image_byte_array[(j * width * 4) + (i * 4) + 2] = (byte) (green - 256);
+        }
+        if (red <= 127) {
+            image_byte_array[(j * width * 4) + (i * 4) + 3] = (byte) red;
+        } else {
+            image_byte_array[(j * width * 4) + (i * 4) + 3] = (byte) (red - 256);
+        }
+    }
+}
+
+
